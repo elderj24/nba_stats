@@ -16,9 +16,15 @@ if os.path.exists('nba_advanced_stats_with_salary_2025.csv'):
     df_merged = pd.read_csv('nba_advanced_stats_with_salary_2025.csv')
     df_merged_qualified = df_merged[df_merged['MP'] >= 15].copy()
     
+    # Create df_for_ranking for analysis cells
+    df_for_ranking = df_merged_qualified.copy()
+    df_for_ranking['is_tot'] = df_for_ranking['Team'] == 'TOT'
+    df_for_ranking = df_for_ranking.sort_values('is_tot', ascending=False).drop_duplicates(subset='Player', keep='first')
+    
     print(f"Loaded {len(df_merged)} stat rows")
     print(f"Qualified players (15+ MPG): {len(df_merged_qualified)}")
-    print("\nYou can now skip to Cell 19 to analyze the data!")
+    print(f"Unique qualified players for ranking: {len(df_for_ranking)}")
+    print("\nData ready! You can now skip to Cell 21 to view analysis!")
     print("Or continue from Cell 2 to re-scrape fresh data.")
 else:
     print("No existing data found. Run cells 2+ to scrape data.")
@@ -273,3 +279,334 @@ df_merged.to_csv('nba_advanced_stats_with_salary_2025.csv', index=False)
 print("\n" + "="*70)
 print("Full data with salary saved to nba_advanced_stats_with_salary_2025.csv")
 print("="*70)
+
+# %%
+# Cell 25: Correlation Analysis with Heatmap
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+print("\n" + "="*70)
+print("CORRELATION ANALYSIS - Advanced Stats vs Salary")
+print("="*70)
+
+# Prepare data - only use players with salary data
+corr_data = df_for_ranking[df_for_ranking['Salary_2025_26'].notna()].copy()
+
+# Select features for correlation analysis
+corr_cols = ['Salary_2025_26', 'PER', 'TS%', 'WS', 'WS/48', 'BPM', 'VORP', 'MP', 'Age']
+
+# Create correlation matrix
+corr_matrix = corr_data[corr_cols].corr()
+
+print("\nCorrelation with Salary:")
+salary_corr = corr_matrix['Salary_2025_26'].sort_values(ascending=False)
+print(salary_corr)
+
+# Create heatmap
+plt.figure(figsize=(10, 8))
+sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0, 
+            fmt='.2f', square=True, linewidths=1)
+plt.title('Correlation Matrix: Advanced Stats vs Salary', fontsize=16, fontweight='bold')
+plt.tight_layout()
+plt.savefig('correlation_heatmap.png', dpi=300, bbox_inches='tight')
+plt.show()
+print("\nHeatmap saved as 'correlation_heatmap.png'")
+
+# %%
+# Cell 26: Individual Scatter Plots - Top Correlations
+fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+fig.suptitle('Salary vs Advanced Stats - Scatter Plots', fontsize=16, fontweight='bold')
+
+# Top stats to plot (excluding salary itself)
+top_stats = ['PER', 'WS', 'VORP', 'BPM', 'WS/48', 'TS%']
+
+for idx, stat in enumerate(top_stats):
+    row = idx // 3
+    col = idx % 3
+    ax = axes[row, col]
+    
+    # Create scatter plot
+    ax.scatter(corr_data[stat], corr_data['Salary_2025_26'] / 1_000_000, 
+               alpha=0.6, s=50)
+    
+    # Add trend line
+    z = np.polyfit(corr_data[stat].dropna(), 
+                   (corr_data['Salary_2025_26'] / 1_000_000).dropna(), 1)
+    p = np.poly1d(z)
+    ax.plot(corr_data[stat].sort_values(), 
+            p(corr_data[stat].sort_values()), 
+            "r--", alpha=0.8, linewidth=2)
+    
+    # Labels and formatting
+    ax.set_xlabel(stat, fontsize=11, fontweight='bold')
+    ax.set_ylabel('Salary ($M)', fontsize=11, fontweight='bold')
+    correlation = corr_matrix.loc[stat, 'Salary_2025_26']
+    ax.set_title(f'{stat} (r = {correlation:.3f})', fontsize=12)
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('salary_scatter_plots.png', dpi=300, bbox_inches='tight')
+plt.show()
+print("\nScatter plots saved as 'salary_scatter_plots.png'")
+
+# %%
+# Cell 27: Linear Regression - Predict Salary from Advanced Stats
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import r2_score, mean_absolute_error
+
+print("\n" + "="*70)
+print("SALARY PREDICTION MODEL - Based on Advanced Stats")
+print("="*70)
+
+# Prepare data - only use players with salary data
+model_data = df_for_ranking[df_for_ranking['Salary_2025_26'].notna()].copy()
+
+# Select features (advanced stats that should correlate with salary)
+feature_cols = ['PER', 'TS%', 'WS', 'WS/48', 'BPM', 'VORP', 'MP']
+
+# Remove any rows with missing values in these columns
+model_data = model_data[feature_cols + ['Salary_2025_26']].dropna()
+
+print(f"\nTraining on {len(model_data)} players with complete data")
+
+# Prepare X (features) and y (target)
+X = model_data[feature_cols]
+y = model_data['Salary_2025_26']
+
+# Split into training and test sets (80/20 split)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train the model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Make predictions
+y_pred_train = model.predict(X_train)
+y_pred_test = model.predict(X_test)
+
+# Evaluate the model
+train_r2 = r2_score(y_train, y_pred_train)
+test_r2 = r2_score(y_test, y_pred_test)
+test_mae = mean_absolute_error(y_test, y_pred_test)
+
+print(f"\nModel Performance:")
+print(f"Training R² Score: {train_r2:.3f}")
+print(f"Test R² Score: {test_r2:.3f}")
+print(f"Mean Absolute Error: ${test_mae:,.0f}")
+
+# Show feature importance (coefficients)
+print("\nFeature Importance (Coefficients):")
+feature_importance = pd.DataFrame({
+    'Feature': feature_cols,
+    'Coefficient': model.coef_
+}).sort_values('Coefficient', key=abs, ascending=False)
+print(feature_importance)
+
+print(f"\nIntercept: ${model.intercept_:,.0f}")
+
+# %%
+# Cell 28: Visualize Model Performance
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+# Plot 1: Actual vs Predicted
+ax1 = axes[0]
+ax1.scatter(y_test / 1_000_000, y_pred_test / 1_000_000, alpha=0.6, s=100)
+ax1.plot([0, y_test.max() / 1_000_000], [0, y_test.max() / 1_000_000], 
+         'r--', lw=2, label='Perfect Prediction')
+ax1.set_xlabel('Actual Salary ($M)', fontsize=12, fontweight='bold')
+ax1.set_ylabel('Predicted Salary ($M)', fontsize=12, fontweight='bold')
+ax1.set_title(f'Actual vs Predicted Salary\nTest R² = {test_r2:.3f}', 
+              fontsize=13, fontweight='bold')
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+
+# Plot 2: Residuals
+ax2 = axes[1]
+residuals = (y_test - y_pred_test) / 1_000_000
+ax2.scatter(y_pred_test / 1_000_000, residuals, alpha=0.6, s=100)
+ax2.axhline(y=0, color='r', linestyle='--', lw=2)
+ax2.set_xlabel('Predicted Salary ($M)', fontsize=12, fontweight='bold')
+ax2.set_ylabel('Residual ($M)', fontsize=12, fontweight='bold')
+ax2.set_title('Residual Plot\n(Actual - Predicted)', 
+              fontsize=13, fontweight='bold')
+ax2.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('model_performance.png', dpi=300, bbox_inches='tight')
+plt.show()
+print("\nModel performance plots saved as 'model_performance.png'")
+
+# %%
+# Cell 29: Show biggest prediction errors (overpaid/underpaid vs model)
+# Add predictions to the full dataset
+model_data_full = df_for_ranking[df_for_ranking['Salary_2025_26'].notna()].copy()
+
+# First, drop NaN values from feature columns only
+model_data_full = model_data_full.dropna(subset=feature_cols)
+
+# Now extract features and make predictions
+X_full = model_data_full[feature_cols]
+model_data_full['Predicted_Salary'] = model.predict(X_full)
+model_data_full['Salary_Diff'] = model_data_full['Salary_2025_26'] - model_data_full['Predicted_Salary']
+model_data_full['Salary_Diff_Pct'] = (model_data_full['Salary_Diff'] / model_data_full['Predicted_Salary'] * 100).round(1)
+
+print("\n" + "="*70)
+print("MOST UNDERPAID (Actual salary much lower than predicted)")
+print("="*70)
+underpaid = model_data_full.nsmallest(10, 'Salary_Diff')[
+    ['Player', 'Team', 'PER', 'WS', 'Salary_2025_26', 'Predicted_Salary', 'Salary_Diff', 'Salary_Diff_Pct']
+]
+print(underpaid)
+
+print("\n" + "="*70)
+print("MOST OVERPAID (Actual salary much higher than predicted)")
+print("="*70)
+overpaid_model = model_data_full.nlargest(10, 'Salary_Diff')[
+    ['Player', 'Team', 'PER', 'WS', 'Salary_2025_26', 'Predicted_Salary', 'Salary_Diff', 'Salary_Diff_Pct']
+]
+print(overpaid_model)
+
+print("\n" + "="*70)
+print("MOST ACCURATE PREDICTIONS (Model got these right)")
+print("="*70)
+model_data_full['Abs_Diff'] = abs(model_data_full['Salary_Diff'])
+accurate = model_data_full.nsmallest(10, 'Abs_Diff')[
+    ['Player', 'Team', 'PER', 'WS', 'Salary_2025_26', 'Predicted_Salary', 'Salary_Diff_Pct']
+]
+print(accurate)
+
+# %%
+# Cell 30: Distribution Plots for Advanced Stats and Salaries
+fig, axes = plt.subplots(2, 3, figsize=(16, 10))
+fig.suptitle('Distribution of Advanced Stats and Salaries (Qualified Players)', 
+             fontsize=16, fontweight='bold')
+
+# Data for plotting - only qualified players with salary
+plot_data = df_for_ranking[df_for_ranking['Salary_2025_26'].notna()].copy()
+
+# Stats to plot
+stats_to_plot = [
+    ('PER', 'Player Efficiency Rating', 'skyblue'),
+    ('WS', 'Win Shares', 'lightcoral'),
+    ('VORP', 'Value Over Replacement', 'lightgreen'),
+    ('BPM', 'Box Plus/Minus', 'plum'),
+    ('TS%', 'True Shooting %', 'peachpuff'),
+    ('Salary_2025_26', 'Salary ($M)', 'gold')
+]
+
+for idx, (stat, title, color) in enumerate(stats_to_plot):
+    row = idx // 3
+    col = idx % 3
+    ax = axes[row, col]
+    
+    # Get data for this stat
+    if stat == 'Salary_2025_26':
+        data = plot_data[stat] / 1_000_000  # Convert to millions
+    else:
+        data = plot_data[stat].dropna()
+    
+    # Create histogram
+    n, bins, patches = ax.hist(data, bins=30, alpha=0.7, color=color, edgecolor='black')
+    
+    # Add mean line
+    mean_val = data.mean()
+    ax.axvline(mean_val, color='red', linestyle='--', linewidth=2, 
+               label=f'Mean: {mean_val:.2f}')
+    
+    # Add median line
+    median_val = data.median()
+    ax.axvline(median_val, color='blue', linestyle='--', linewidth=2,
+               label=f'Median: {median_val:.2f}')
+    
+    # Labels and formatting
+    ax.set_xlabel(title, fontsize=11, fontweight='bold')
+    ax.set_ylabel('Frequency', fontsize=11, fontweight='bold')
+    ax.set_title(f'{title} Distribution', fontsize=12, fontweight='bold')
+    ax.legend(fontsize=9)
+    ax.grid(True, alpha=0.3, axis='y')
+    
+    # Add stats text box
+    stats_text = f'Min: {data.min():.2f}\nMax: {data.max():.2f}\nStd: {data.std():.2f}'
+    ax.text(0.98, 0.97, stats_text, transform=ax.transAxes, 
+            fontsize=9, verticalalignment='top', horizontalalignment='right',
+            bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
+
+plt.tight_layout()
+plt.savefig('stats_distributions.png', dpi=300, bbox_inches='tight')
+plt.show()
+print("\nDistribution plots saved as 'stats_distributions.png'")
+
+# Print summary statistics
+print("\n" + "="*70)
+print("SUMMARY STATISTICS FOR QUALIFIED PLAYERS")
+print("="*70)
+summary_stats = plot_data[['PER', 'WS', 'VORP', 'BPM', 'TS%']].describe()
+print(summary_stats)
+
+print("\n" + "="*70)
+print("SALARY DISTRIBUTION (in millions)")
+print("="*70)
+salary_summary = (plot_data['Salary_2025_26'] / 1_000_000).describe()
+print(salary_summary)
+
+# %%
+# Cell 31: Box Plots for Advanced Stats Comparison
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+# Box plot 1: Advanced Stats
+ax1 = axes[0]
+stats_for_box = ['PER', 'TS%', 'WS/48', 'BPM', 'VORP']
+box_data = [plot_data[stat].dropna() for stat in stats_for_box]
+
+bp1 = ax1.boxplot(box_data, labels=stats_for_box, patch_artist=True,
+                   notch=True, showmeans=True)
+
+# Color the boxes
+colors = ['skyblue', 'lightcoral', 'lightgreen', 'plum', 'peachpuff']
+for patch, color in zip(bp1['boxes'], colors):
+    patch.set_facecolor(color)
+    patch.set_alpha(0.7)
+
+ax1.set_ylabel('Value', fontsize=12, fontweight='bold')
+ax1.set_title('Advanced Stats - Box Plots', fontsize=13, fontweight='bold')
+ax1.grid(True, alpha=0.3, axis='y')
+ax1.set_xticklabels(stats_for_box, rotation=45, ha='right')
+
+# Box plot 2: Salary by Position (if we have position data)
+ax2 = axes[1]
+if 'Pos' in plot_data.columns:
+    # Get top 5 most common positions
+    top_positions = plot_data['Pos'].value_counts().head(5).index.tolist()
+    salary_by_pos = [plot_data[plot_data['Pos'] == pos]['Salary_2025_26'].dropna() / 1_000_000 
+                     for pos in top_positions]
+    
+    bp2 = ax2.boxplot(salary_by_pos, labels=top_positions, patch_artist=True,
+                       notch=True, showmeans=True)
+    
+    # Color the boxes
+    for patch in bp2['boxes']:
+        patch.set_facecolor('gold')
+        patch.set_alpha(0.7)
+    
+    ax2.set_ylabel('Salary ($M)', fontsize=12, fontweight='bold')
+    ax2.set_xlabel('Position', fontsize=12, fontweight='bold')
+    ax2.set_title('Salary Distribution by Position', fontsize=13, fontweight='bold')
+else:
+    # Just show overall salary distribution
+    bp2 = ax2.boxplot([plot_data['Salary_2025_26'].dropna() / 1_000_000], 
+                       labels=['All Players'], patch_artist=True,
+                       notch=True, showmeans=True)
+    bp2['boxes'][0].set_facecolor('gold')
+    bp2['boxes'][0].set_alpha(0.7)
+    
+    ax2.set_ylabel('Salary ($M)', fontsize=12, fontweight='bold')
+    ax2.set_title('Overall Salary Distribution', fontsize=13, fontweight='bold')
+
+ax2.grid(True, alpha=0.3, axis='y')
+
+plt.tight_layout()
+plt.savefig('boxplots_comparison.png', dpi=300, bbox_inches='tight')
+plt.show()
+print("\nBox plots saved as 'boxplots_comparison.png'")
+# %%
