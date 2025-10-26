@@ -186,6 +186,10 @@ print(f"\nSalary data cleaned.")
 print(f"Total players with salary: {len(df_salary_clean)}")
 print(df_salary_clean.head(10))
 
+# Create CSV file 
+df_salary_clean.to_csv('nba_player_salaries_2025.csv', index=False)
+print("\nSalary data saved to nba_player_salaries_2025.csv")    
+
 # %%
 # Cell 19: Merge salary with advanced stats
 df_merged = df.merge(df_salary_clean, on='Player', how='left')
