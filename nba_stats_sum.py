@@ -1,8 +1,9 @@
-# NBA Salary Analysis: Predicting Player Value Using Advanced Statistics
-# Analyzes performance metrics and builds regression model to identify under/overvalued players
+# NBA Salary Analysis (Summary Version): How do advanced performance metrics relate to player salaries?
+# Refer to public github repo: [  ] for further exploration and analysis 
+# Data source: basketball-reference.com (refer to nba_scraping.ipynb for data scraping details)
 
 #%%
-# Import libraries and load data
+#1 Import libraries and load csv data
 import pandas as pd, matplotlib.pyplot as plt, seaborn as sns, numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
@@ -12,26 +13,27 @@ df_stats = pd.read_csv('nba_advanced_stats_2025.csv')
 df_salary = pd.read_csv('nba_player_salaries_2025.csv')
 
 #%%
-# Data Cleaning
-# Remove nulls and duplicates from salary data
+#2 Data Cleaning
+# Salary Data: Remove nulls from page breaks and any duplicates (take first entry)
 df_salary_updated = df_salary.dropna(subset=['Salary_2025_26']).drop_duplicates(subset=['Player'], keep='first')
 
-# Identify players with 2TM/3TM entries
+# Stats Data: Clean up players with multiple entries due to mid-season trades 
+# Identify players with 2TM/3TM entries (signifying multiple teams)
 has_combined = df_stats[df_stats['Team'].isin(['2TM', '3TM'])]['Player'].unique()
 
 # Keep only 2TM/3TM rows for traded players, and all rows for non-traded players
-df_stats_cleaned = df_stats[
+df_stats_updated = df_stats[
     (df_stats['Player'].isin(has_combined) & df_stats['Team'].isin(['2TM', '3TM'])) |
     (~df_stats['Player'].isin(has_combined))
 ].reset_index(drop=True)
 
 #%%
 # Merge datasets and create salary in millions
-df_merged = pd.merge(df_stats_cleaned, df_salary_updated[['Player', 'Salary_2025_26']], on='Player', how='inner')
+df_merged = pd.merge(df_stats_updated, df_salary_updated[['Player', 'Salary_2025_26']], on='Player', how='inner')
 df_merged['Salary_Millions'] = df_merged['Salary_2025_26'] / 1_000_000
 
 #%%
-# Correlation Analysis
+# Examine a correlation matrix between the variables of interest
 correlation_matrix = df_merged[['PER', 'WS', 'VORP', 'Salary_Millions']].corr()
 plt.figure(figsize=(8, 6))
 sns.heatmap(correlation_matrix, annot=True, fmt='.3f', cmap='coolwarm', center=0, 
@@ -41,7 +43,7 @@ plt.tight_layout()
 plt.show()
 
 #%%
-# Multi-Linear Regression Model
+# Create a Multi-Linear Regression Model to forecast salary based on select advanced stats
 features_to_use = ['PER', 'TS%', 'WS', 'WS/48', 'OBPM', 'DBPM', 'BPM', 'VORP', 
             'MP', 'G', 'USG%', 'AST%', 'TRB%']
 
