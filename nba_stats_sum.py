@@ -1,6 +1,7 @@
 # NBA Salary Analysis: Predicting Player Value Using Advanced Statistics
 # Analyzes performance metrics and builds regression model to identify under/overvalued players
 
+#%%
 # Import libraries and load data
 import pandas as pd, matplotlib.pyplot as plt, seaborn as sns, numpy as np
 from sklearn.model_selection import train_test_split
@@ -10,6 +11,7 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 df_stats = pd.read_csv('nba_advanced_stats_2025.csv')
 df_salary = pd.read_csv('nba_player_salaries_2025.csv')
 
+#%%
 # Data Cleaning
 # Remove nulls and duplicates from salary data
 df_salary = df_salary.dropna(subset=['Salary_2025_26']).drop_duplicates(subset=['Player'], keep='first')
@@ -19,10 +21,12 @@ df_stats = df_stats.groupby('Player', group_keys=False).apply(
     lambda g: g[g['Team'].isin(['2TM', '3TM'])] if any(g['Team'].isin(['2TM', '3TM'])) else g
 ).reset_index(drop=True)
 
+#%%
 # Merge datasets and create salary in millions
 df_merged = pd.merge(df_stats, df_salary[['Player', 'Salary_2025_26']], on='Player', how='inner')
 df_merged['Salary_Millions'] = df_merged['Salary_2025_26'] / 1_000_000
 
+#%%
 # Correlation Analysis
 correlation_matrix = df_merged[['PER', 'WS', 'VORP', 'Salary_Millions']].corr()
 plt.figure(figsize=(8, 6))
@@ -32,6 +36,7 @@ plt.title('Correlation Matrix: Performance Metrics vs Salary', fontsize=14, pad=
 plt.tight_layout()
 plt.show()
 
+#%%
 # Multi-Linear Regression Model
 features = ['PER', 'TS%', 'WS', 'WS/48', 'OBPM', 'DBPM', 'BPM', 'VORP', 
             'MP', 'G', 'USG%', 'AST%', 'TRB%']
@@ -52,6 +57,7 @@ print(f"  R² Score: {r2_score(y_test, y_pred_test):.4f}")
 print(f"  RMSE: ${np.sqrt(mean_squared_error(y_test, y_pred_test)):.2f}M")
 print(f"  MAE: ${mean_absolute_error(y_test, y_pred_test):.2f}M")
 
+#%%
 # Visualize predictions vs actual
 plt.figure(figsize=(10, 6))
 plt.scatter(y_test, y_pred_test, alpha=0.6)
@@ -62,6 +68,7 @@ plt.title('Predicted vs Actual Salaries (Test Set)')
 plt.tight_layout()
 plt.show()
 
+#%%
 # Identify Over/Underpaid Players
 results_df = pd.DataFrame({
     'Player': df_merged.loc[X_test.index, 'Player'].values,
