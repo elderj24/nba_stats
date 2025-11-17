@@ -14,16 +14,20 @@ df_salary = pd.read_csv('nba_player_salaries_2025.csv')
 #%%
 # Data Cleaning
 # Remove nulls and duplicates from salary data
-df_salary = df_salary.dropna(subset=['Salary_2025_26']).drop_duplicates(subset=['Player'], keep='first')
+df_salary_updated = df_salary.dropna(subset=['Salary_2025_26']).drop_duplicates(subset=['Player'], keep='first')
 
-# For traded players, keep combined team stats (2TM/3TM); otherwise keep first occurrence
-df_stats = df_stats.groupby('Player', group_keys=False).apply(
-    lambda g: g[g['Team'].isin(['2TM', '3TM'])] if any(g['Team'].isin(['2TM', '3TM'])) else g
-).reset_index(drop=True)
+# Identify players with 2TM/3TM entries
+has_combined = df_stats[df_stats['Team'].isin(['2TM', '3TM'])]['Player'].unique()
+
+# Keep only 2TM/3TM rows for traded players, and all rows for non-traded players
+df_stats_cleaned = df_stats[
+    (df_stats['Player'].isin(has_combined) & df_stats['Team'].isin(['2TM', '3TM'])) |
+    (~df_stats['Player'].isin(has_combined))
+].reset_index(drop=True)
 
 #%%
 # Merge datasets and create salary in millions
-df_merged = pd.merge(df_stats, df_salary[['Player', 'Salary_2025_26']], on='Player', how='inner')
+df_merged = pd.merge(df_stats_cleaned, df_salary_updated[['Player', 'Salary_2025_26']], on='Player', how='inner')
 df_merged['Salary_Millions'] = df_merged['Salary_2025_26'] / 1_000_000
 
 #%%
@@ -38,11 +42,11 @@ plt.show()
 
 #%%
 # Multi-Linear Regression Model
-features = ['PER', 'TS%', 'WS', 'WS/48', 'OBPM', 'DBPM', 'BPM', 'VORP', 
+features_to_use = ['PER', 'TS%', 'WS', 'WS/48', 'OBPM', 'DBPM', 'BPM', 'VORP', 
             'MP', 'G', 'USG%', 'AST%', 'TRB%']
 
-df_model = df_merged[features + ['Salary_Millions']].dropna()
-X = df_model[features]
+df_model = df_merged[features_to_use + ['Salary_Millions']].dropna()
+X = df_model[features_to_use]
 y = df_model['Salary_Millions']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
