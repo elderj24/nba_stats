@@ -71,14 +71,10 @@ results_df = pd.DataFrame({
     'Difference': y_test.values - y_pred_test
 }).sort_values('Difference', ascending=False)
 
-print("\n" + "="*70)
 print("TOP 3 OVERPAID PLAYERS (Actual > Predicted)")
-print("="*70)
 print(results_df.head(3).to_string(index=False))
 
-print("\n" + "="*70)
 print("TOP 3 UNDERPAID PLAYERS (Predicted > Actual)")
-print("="*70)
 print(results_df.tail(3).to_string(index=False))
 
 results_df.to_csv('salary_predictions_sum.csv', index=False)
