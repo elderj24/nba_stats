@@ -1,5 +1,5 @@
 # NBA Salary Analysis (Summary Version): How do advanced performance metrics relate to player salaries?
-# Refer to public github repo: [  ] for further exploration and analysis 
+# Refer to public github repo: https://github.com/elderj24/nba_stats for further exploration and analysis 
 # Data source: basketball-reference.com (refer to nba_scraping.ipynb for data scraping details)
 
 #%%
